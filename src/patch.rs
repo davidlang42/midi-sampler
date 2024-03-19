@@ -34,10 +34,11 @@ impl Patch {
 
     pub fn play(&mut self, note: Note) {
         if let Some(bytes) = &self.data[note as usize] {
-            let (_, output) = OutputStream::try_default().unwrap();
+            let (_stream, output) = OutputStream::try_default().unwrap();
             let bytes_copy = bytes.clone();//TODO this is fucking stupid
             let cursor = Cursor::new(bytes_copy);
             let sink = output.play_once(cursor).unwrap();
+            sink.sleep_until_end();
             self.playing[note as usize].push(sink);
         } 
     }

@@ -5,7 +5,7 @@ use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Settings {
-    name: String,
+    pub name: String,
     pub lsb: u8,
     pub msb: u8,
     pub pc: u8,
