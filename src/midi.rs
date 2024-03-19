@@ -1,15 +1,18 @@
-use std::path::PathBuf;
 use std::sync::mpsc;
 use std::fs;
 use std::thread;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::error::Error;
 use std::thread::JoinHandle;
-use std::time::Duration;
 use wmidi::FromBytesError;
 use wmidi::MidiMessage;
 use wmidi::U7;
-use nonblock::NonBlockingReader;
+
+pub trait MidiReceiver {
+    fn passthrough_midi(&mut self, message: MidiMessage<'static>) -> Option<MidiMessage<'static>> {
+        Some(message)
+    }
+}
 
 pub struct InputDevice {
     receiver: mpsc::Receiver<MidiMessage<'static>>,

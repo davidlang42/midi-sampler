@@ -1,11 +1,18 @@
-use std::fs::File;
-use std::io::BufReader;
-use rodio::OutputStream;
+use std::{env, fs};
+use std::error::Error;
+use settings::Settings;
+
+use crate::midi::InputDevice;
+use crate::sampler::Sampler;
+use crate::settings::PredefinedProgramChanges;
 
 mod midi;
 mod sampler;
-mod patch;
+mod settings;
 
+// use std::fs::File;
+// use std::io::BufReader;
+// use rodio::OutputStream;
 // fn main() {
 //     // println!("Getting stream...");
 //     // let (_stream, stream_handle) = OutputStream::try_default().unwrap();
@@ -24,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut args = env::args().skip(1);
     let predefined = Settings::load(args.next().unwrap_or(DEFAULT_SETTINGS_FILE.to_owned()))?;
     if let Some(specified_device) = args.next() {
-        run(specified_device, predefined);
+        run(&specified_device, predefined)
     } else {
         let devices = list_files("/dev", "midi")?;
         match devices.len() {
@@ -37,11 +44,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn run(midi_in: &str, predefined: Vec<Settings>) -> Result<(), Box<dyn Error>> {
     println!("Starting sampler with MIDI-IN: {}", midi_in);
-    MultiArpeggiator {
-        midi_in: InputDevice::open_with_external_clock(&midi_in, &midi_out)?,
-        midi_out: OutputDevice::open(&midi_out)?,
+    Sampler {
+        midi_in: InputDevice::open(&midi_in, false)?,
         settings: PredefinedProgramChanges::new(predefined),
-        status: LedStatus::<8>::new(18)
     }.listen()
 }
 
