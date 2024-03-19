@@ -8,18 +8,13 @@ use wmidi::FromBytesError;
 use wmidi::MidiMessage;
 use wmidi::U7;
 
-pub trait MidiReceiver {
-    fn passthrough_midi(&mut self, message: MidiMessage<'static>) -> Option<MidiMessage<'static>> {
-        Some(message)
-    }
-}
-
 pub struct InputDevice {
     receiver: mpsc::Receiver<MidiMessage<'static>>,
     threads: Vec<JoinHandle<()>>
 }
 
-pub const TICKS_PER_BEAT: usize = 24;
+//TODO
+//pub const TICKS_PER_BEAT: usize = 24;
 
 impl InputDevice {
     pub fn open(midi_in: &str, include_clock_ticks: bool) -> Result<Self, Box<dyn Error>> {

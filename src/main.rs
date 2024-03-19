@@ -4,12 +4,13 @@ use settings::Settings;
 
 use crate::midi::InputDevice;
 use crate::sampler::Sampler;
-use crate::settings::PredefinedProgramChanges;
 
 mod midi;
 mod sampler;
 mod settings;
+mod patch;
 
+//TODO
 // use std::fs::File;
 // use std::io::BufReader;
 // use rodio::OutputStream;
@@ -44,10 +45,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn run(midi_in: &str, predefined: Vec<Settings>) -> Result<(), Box<dyn Error>> {
     println!("Starting sampler with MIDI-IN: {}", midi_in);
-    Sampler {
-        midi_in: InputDevice::open(&midi_in, false)?,
-        settings: PredefinedProgramChanges::new(predefined),
-    }.listen()
+    Sampler::new(InputDevice::open(&midi_in, false)?, predefined).listen()
 }
 
 fn list_files(root: &str, prefix: &str) -> Result<Vec<String>, Box<dyn Error>> {

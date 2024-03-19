@@ -1,45 +1,99 @@
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
-use crate::{midi::{InputDevice, MidiReceiver}, settings::SettingsGetter};
+use wmidi::{ControlFunction, MidiMessage};
 
-pub struct Sampler<SG: SettingsGetter> {
-    pub midi_in: InputDevice,
-    pub settings: SG
+use crate::{midi::InputDevice, patch::Patch, settings::Settings};
+
+pub struct Sampler {
+    midi_in: InputDevice,
+    settings: HashMap<(u8, u8, u8), Settings>,
+    msb: u8,
+    lsb: u8,
+    pc: u8
 }
 
-impl<SG: SettingsGetter> Sampler<SG> {
-    pub fn listen(self) -> Result<(), Box<dyn Error>> {
-        self.listen_with_midi_receivers(Vec::new())
+impl Sampler {
+    pub fn new(midi_in: InputDevice, settings_list: Vec<Settings>) -> Self {
+        let mut settings = HashMap::new();
+        for s in settings_list {
+            settings.insert((s.msb, s.lsb, s.pc), s);
+        }
+        Self {
+            midi_in,
+            settings,
+            msb: 0,
+            lsb: 0,
+            pc: 0
+        }
     }
 
-    pub fn listen_with_midi_receivers(mut self, mut extra_midi_receivers: Vec<&mut dyn MidiReceiver>) -> Result<(), Box<dyn Error>> {
-        let mut current = None;
+    pub fn listen(mut self) -> Result<(), Box<dyn Error>> {
+        let mut patch: Option<Patch> = None;
         loop {
-            let mut m = Some(self.midi_in.read()?);
-            // pass message through extra receivers
-            for midi_receiver in extra_midi_receivers.iter_mut() {
-                m = midi_receiver.passthrough_midi(m.unwrap());
-                if m.is_none() { break; }
+            match self.midi_in.read()? {
+                MidiMessage::ControlChange(_, ControlFunction::BANK_SELECT, msb) => {
+                    self.msb = msb.into();
+                },
+                MidiMessage::ControlChange(_, ControlFunction::BANK_SELECT_LSB, lsb) => {
+                    self.lsb = lsb.into();
+                },
+                MidiMessage::ProgramChange(_, pc) => {
+                    self.pc = pc.into();
+                    if let Some(old_patch) = patch {
+                        old_patch.finish_all_sounds();
+                    }
+                    if let Some(new_settings) = self.settings.get(&(self.msb, self.lsb, self.pc)) {
+                        patch = Some(Patch::from(new_settings));
+                    } else {
+                        patch = None;
+                    }
+                },
+                MidiMessage::NoteOn(_, n, _) => {
+                    //TODO handle channel, velocity
+                    if let Some(current) = &mut patch {
+                        current.play(n);
+                    }
+                },
+                _ => ()
+                //TODO handle pedal
+                // MidiMessage::ControlChange(_, ControlFunction::DAMPER_PEDAL, value) => {
+                //     let new_pedal = u8::from(value) >= 64;
+                //     if self.pedal != new_pedal {
+                //         self.pedal = new_pedal;
+                //         if !self.pedal {
+                //             // pedal released
+                //             let notes_to_release: Vec<Note> = self.pedal_notes_off.drain().collect();
+                //             for n in notes_to_release {
+                //                 self.release_note(n);
+                //             }
+                //         }
+                //     }
+                // },
+                // MidiMessage::NoteOn(c, n, v) => {
+                //     if self.pedal_notes_off.remove(&n) { // this implies self.pedal
+                //         // we are re-pressing a note which isn't actually off yet, because we're holding the pedal
+                //         // so we just removed it from what will be released when the pedal is released
+                //     } else {
+                //         self.held_notes.insert(n, (Instant::now(), NoteDetails::new(c, n, v, settings.fixed_velocity)));
+                //     }
+                // },
+                // MidiMessage::NoteOff(_, n, _) => {
+                //     if self.pedal {
+                //         // if the pedal is down, we don't actually release the note, just add it to a list
+                //         // when the pedal is released, all the notes in the list get "released"
+                //         self.pedal_notes_off.insert(n);
+                //     } else {
+                //         self.release_note(n);
+                //     }
+                // },
+                // MidiMessage::TimingClock => {
+                // },
+                //TODO handle midi reset
+                // MidiMessage::Reset => {
+                //     self.held_notes.clear();
+                //     drain_and_force_stop_vec(&mut self.arpeggios)?;
+                // },
             }
-            // pass message through settings
-            if m.is_none() { continue; }
-            m = self.settings.passthrough_midi(m.unwrap());
-            // handle settings changes
-            self.status.update_settings(self.settings.get());
-            let new_mode = self.settings.get().mode;
-            if new_mode != mode {
-                mode = new_mode;
-                current.stop_arpeggios()?;
-                current = new_mode.create(&self.midi_out);
-                self.status.update_count(current.count_arpeggios());
-            }
-            // pass message through status
-            if m.is_none() { continue; }
-            m = self.status.passthrough_midi(m.unwrap());
-            // process message in arp
-            if m.is_none() { continue; }
-            current.process(m.unwrap(), self.settings.get(), &mut self.status)?;
-            self.status.update_count(current.count_arpeggios());
         }
     }
 }
