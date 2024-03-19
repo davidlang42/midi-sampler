@@ -43,13 +43,16 @@ impl Sampler {
                         old_patch.finish_all_sounds();
                     }
                     if let Some(new_settings) = self.settings.get(&(self.msb, self.lsb, self.pc)) {
+                        println!("Patch: {}", new_settings.name);
                         patch = Some(Patch::from(new_settings));
                     } else {
+                        println!("No patch");
                         patch = None;
                     }
                 },
                 MidiMessage::NoteOn(_, n, _) => {
                     //TODO handle channel, velocity
+                    println!("Note: {:?}", n);
                     if let Some(current) = &mut patch {
                         current.play(n);
                     }
