@@ -9,7 +9,7 @@ pub struct Settings {
     pub lsb: u8,
     pub msb: u8,
     pub pc: u8,
-    samples: HashMap<String, String>,//TODO HashMap<Note, Path>
+    pub samples: HashMap<u8, String>,//TODO HashMap<Note, Path>
 }
 
 impl Settings {
