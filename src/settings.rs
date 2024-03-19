@@ -10,6 +10,7 @@ pub struct Settings {
     pub msb: u8,
     pub pc: u8,
     pub samples: HashMap<u8, String>,//TODO HashMap<Note, Path>
+    //TODO parse note names as strings
 }
 
 impl Settings {

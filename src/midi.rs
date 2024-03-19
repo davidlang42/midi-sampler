@@ -13,9 +13,6 @@ pub struct InputDevice {
     threads: Vec<JoinHandle<()>>
 }
 
-//TODO
-//pub const TICKS_PER_BEAT: usize = 24;
-
 impl InputDevice {
     pub fn open(midi_in: &str, include_clock_ticks: bool) -> Result<Self, Box<dyn Error>> {
         let (tx, rx) = mpsc::channel();

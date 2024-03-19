@@ -38,7 +38,7 @@ impl Patch {
             let bytes_copy = bytes.clone();//TODO this is fucking stupid
             let cursor = Cursor::new(bytes_copy);
             let sink = output.play_once(cursor).unwrap();
-            sink.sleep_until_end();
+            sink.sleep_until_end();//TODO this is rubbish, seems I need to keep track of the stream/handle/both for it to keep playing
             self.playing[note as usize].push(sink);
         } 
     }
