@@ -1,13 +1,13 @@
 use rodio::{OutputStream, OutputStreamHandle, Sink};
 use wmidi::Note;
-use std::{fs::File, io::{BufReader, Cursor, Read}};
+use std::{fs::File, io::{Cursor, Read}};
 
 use crate::settings::Settings;
 
 pub struct Patch {
     output: OutputStreamHandle,
     data: [Option<Vec<u8>>; Self::NOTE_MAX],
-    playing: [Option<Vec<Sink>>; Self::NOTE_MAX]
+    playing: [Vec<Sink>; Self::NOTE_MAX]
 }
 
 impl Patch {
@@ -15,7 +15,7 @@ impl Patch {
 
     pub fn from(settings: &Settings) -> Self {
         const NONE_VEC_U8: Option<Vec<u8>> = None;
-        const NONE_VEC_SINK: Option<Vec<Sink>> = None;
+        const EMPTY_VEC_SINK: Vec<Sink> = Vec::new();
         let mut data = [NONE_VEC_U8; Self::NOTE_MAX];
         for (note, path) in &settings.samples {
             let n = Note::from_u8_lossy(*note);
@@ -28,7 +28,7 @@ impl Patch {
         Self {
             output,
             data,
-            playing: [NONE_VEC_SINK; Self::NOTE_MAX]
+            playing: [EMPTY_VEC_SINK; Self::NOTE_MAX]
         }
     }
 
@@ -38,11 +38,15 @@ impl Patch {
             let bytes_copy = bytes.clone();//TODO this is fucking stupid
             let cursor = Cursor::new(bytes_copy);
             let sink = output.play_once(cursor).unwrap();
-            sink.sleep_until_end();
+            self.playing[note as usize].push(sink);
         } 
     }
 
-    pub fn finish_all_sounds(self) -> OutputStream {
-        todo!()//TODO
+    pub fn finish_all_sounds(self) {
+        for vec in self.playing {
+            for sink in vec {
+                sink.sleep_until_end();
+            }
+        }
     }
 }
