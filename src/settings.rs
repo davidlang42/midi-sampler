@@ -6,9 +6,9 @@ use serde_derive::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Settings {
     pub name: String,
-    pub lsb: u8,
-    pub msb: u8,
-    pub pc: u8,
+    pub lsb: u8, // 0-127
+    pub msb: u8, // 0-127
+    pub pc: u8, // 1-128
     pub samples: HashMap<u8, String>,//TODO HashMap<Note, Path>
     //TODO parse note names as strings
 }
