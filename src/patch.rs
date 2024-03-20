@@ -5,7 +5,8 @@ use std::{fs::File, io::{Cursor, Read}};
 use crate::settings::Settings;
 
 pub struct Patch {
-    output: OutputStreamHandle,
+    _stream: OutputStream,
+    handle: OutputStreamHandle,
     data: [Option<Vec<u8>>; Self::NOTE_MAX],
     playing: [Vec<Sink>; Self::NOTE_MAX]
 }
@@ -24,9 +25,10 @@ impl Patch {
             f.read_to_end(&mut bytes).unwrap();
             data[n as usize] = Some(bytes);
         }
-        let (_, output) = OutputStream::try_default().unwrap();
+        let (_stream, handle) = OutputStream::try_default().unwrap();
         Self {
-            output,
+            _stream,
+            handle,
             data,
             playing: [EMPTY_VEC_SINK; Self::NOTE_MAX]
         }
@@ -34,11 +36,9 @@ impl Patch {
 
     pub fn play(&mut self, note: Note) {
         if let Some(bytes) = &self.data[note as usize] {
-            let (_stream, output) = OutputStream::try_default().unwrap();
-            let bytes_copy = bytes.clone();//TODO this is fucking stupid
+            let bytes_copy = bytes.clone(); // because rodio was too lazy to implement lifetimes
             let cursor = Cursor::new(bytes_copy);
-            let sink = output.play_once(cursor).unwrap();
-            sink.sleep_until_end();//TODO this is rubbish, seems I need to keep track of the stream/handle/both for it to keep playing
+            let sink = self.handle.play_once(cursor).unwrap();
             self.playing[note as usize].push(sink);
         } 
     }
