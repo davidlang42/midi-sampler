@@ -19,7 +19,7 @@ impl Patch {
         const EMPTY_VEC_SINK: Vec<Sink> = Vec::new();
         let mut data = [NONE_VEC_U8; Self::NOTE_MAX];
         for (note, path) in &settings.samples {
-            let n = Note::from_u8_lossy(*note);
+            let n = Note::from_u8_lossy(*note as u8);
             let mut f = File::open(path).unwrap();
             let mut bytes = Vec::new();
             f.read_to_end(&mut bytes).unwrap();

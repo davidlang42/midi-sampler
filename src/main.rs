@@ -9,6 +9,7 @@ mod midi;
 mod sampler;
 mod settings;
 mod patch;
+mod notename;
 
 const DEFAULT_SETTINGS_FILE: &str = "settings.json";
 

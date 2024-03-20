@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use serde_derive::{Deserialize, Serialize};
+use crate::notename::NoteName;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Settings {
@@ -9,8 +10,7 @@ pub struct Settings {
     pub lsb: u8, // 0-127
     pub msb: u8, // 0-127
     pub pc: u8, // 1-128
-    pub samples: HashMap<u8, String>,//TODO HashMap<Note, Path>
-    //TODO parse note names as strings
+    pub samples: HashMap<NoteName, String>
 }
 
 impl Settings {
