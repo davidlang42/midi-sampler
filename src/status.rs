@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use std::{io, sync::mpsc::Receiver};
@@ -151,5 +152,29 @@ impl Status for GpioStatus {
     
     fn sound_played(&mut self) {
         self.send(State::flash_once(TriColour::Green));
+    }
+}
+
+pub struct TextStatus<W: Write>(pub W);
+
+impl<W: Write> Status for TextStatus<W> {
+    fn patch_cleared(&mut self) {
+        writeln!(self.0, "No patch").unwrap();
+    }
+
+    fn patch_loading(&mut self) {
+        writeln!(self.0, "Loading patch").unwrap();
+    }
+
+    fn patch_unloading(&mut self) {
+        writeln!(self.0, "Unloading patch").unwrap();
+    }
+
+    fn patch_ready(&mut self) {
+        writeln!(self.0, "Patch ready").unwrap();
+    }
+
+    fn sound_played(&mut self) {
+        writeln!(self.0, "Sound played").unwrap();
     }
 }
