@@ -37,8 +37,10 @@ impl Patch {
     pub fn play(&mut self, note: Note) -> bool {
         if let Some(bytes) = &self.data[note as usize] {
             let cursor = Cursor::new(bytes.clone());
-            let sink = self.handle.play_once(cursor).unwrap();
-            self.playing[note as usize].push(sink);
+            let new = self.handle.play_once(cursor).unwrap();
+            let sinks = &mut self.playing[note as usize];
+            sinks.retain(|s| !s.empty());
+            sinks.push(new);
             true
         } else {
             false
