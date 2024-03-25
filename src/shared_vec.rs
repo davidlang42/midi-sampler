@@ -3,7 +3,7 @@ use std::sync::Arc;
 pub struct SharedVec<T>(Arc<Vec<T>>);
 
 impl<T> SharedVec<T> {
-    fn _instances(&self) -> usize {
+    pub fn instances(&self) -> usize {
         Arc::strong_count(&self.0)
     }
 }

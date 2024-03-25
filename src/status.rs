@@ -4,13 +4,17 @@ use std::time::Duration;
 use std::{io, sync::mpsc::Receiver};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use gpio::{sysfs::SysFsGpioOutput, GpioOut};
+use wmidi::Note;
+
+use crate::patch::Patch;
+use crate::settings::Settings;
 
 pub trait Status {
-    fn patch_cleared(&mut self);
-    fn patch_loading(&mut self);
-    fn patch_unloading(&mut self);
-    fn patch_ready(&mut self);
-    fn sound_played(&mut self);
+    fn no_patch(&mut self);
+    fn patch_loading(&mut self, settings: &Settings);
+    fn patch_ready(&mut self, patch: &Patch);
+    fn patch_unloading(&mut self, patch: &Patch);
+    fn sound_played(&mut self, note: Note);
 }
 
 pub struct GpioStatus {
@@ -130,7 +134,7 @@ impl GpioStatus {
 }
 
 impl Status for GpioStatus {
-    fn patch_cleared(&mut self) {
+    fn no_patch(&mut self) {
         if self.last == Some(TriColour::Red) {
             self.send(State::flash_once(TriColour::Red));
         } else {
@@ -138,19 +142,19 @@ impl Status for GpioStatus {
         }
     }
 
-    fn patch_loading(&mut self) {
+    fn patch_loading(&mut self, _settings: &Settings) {
         self.send(State::Solid(TriColour::Orange));
     }
 
-    fn patch_unloading(&mut self) {
-        self.send(State::flashing(TriColour::Orange));
-    }
-
-    fn patch_ready(&mut self) {
+    fn patch_ready(&mut self, _patch: &Patch) {
         self.send(State::Solid(TriColour::Green));
     }
+
+    fn patch_unloading(&mut self, _patch: &Patch) {
+        self.send(State::flashing(TriColour::Orange));
+    }
     
-    fn sound_played(&mut self) {
+    fn sound_played(&mut self, _note: Note) {
         self.send(State::flash_once(TriColour::Green));
     }
 }
@@ -158,23 +162,23 @@ impl Status for GpioStatus {
 pub struct TextStatus<W: Write>(pub W);
 
 impl<W: Write> Status for TextStatus<W> {
-    fn patch_cleared(&mut self) {
+    fn no_patch(&mut self) {
         writeln!(self.0, "No patch").unwrap();
     }
 
-    fn patch_loading(&mut self) {
-        writeln!(self.0, "Loading patch").unwrap();
+    fn patch_loading(&mut self, settings: &Settings) {
+        writeln!(self.0, "Loading patch: {}", settings.name).unwrap();
     }
 
-    fn patch_unloading(&mut self) {
-        writeln!(self.0, "Unloading patch").unwrap();
+    fn patch_ready(&mut self, patch: &Patch) {
+        writeln!(self.0, "Patch ready: {:?}", patch.trigger_notes()).unwrap();
     }
 
-    fn patch_ready(&mut self) {
-        writeln!(self.0, "Patch ready").unwrap();
+    fn patch_unloading(&mut self, patch: &Patch) {
+        writeln!(self.0, "Unloading patch: {:?}", patch.playing_sounds()).unwrap();
     }
 
-    fn sound_played(&mut self) {
-        writeln!(self.0, "Sound played").unwrap();
+    fn sound_played(&mut self, note: Note) {
+        writeln!(self.0, "Sound played: {:?}", note).unwrap();
     }
 }

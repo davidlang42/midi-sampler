@@ -1,6 +1,6 @@
 use rodio::{OutputStream, OutputStreamHandle, Sink};
 use wmidi::Note;
-use std::{fs::File, io::{Cursor, Read}};
+use std::{collections::HashMap, fs::File, io::{Cursor, Read}};
 
 use crate::{settings::Settings, shared_vec::SharedVec};
 
@@ -43,6 +43,26 @@ impl Patch {
         } else {
             false
         }
+    }
+
+    pub fn trigger_notes(&self) -> Vec<Note> {
+        let mut v = Vec::new();
+        for d in 0..self.data.len() {
+            if self.data[d].is_some() {
+                v.push(Note::from_u8_lossy(d as u8));
+            }
+        }
+        v
+    }
+
+    pub fn playing_sounds(&self) -> HashMap<Note, usize> {
+        let mut map = HashMap::new();
+        for d in 0..self.data.len() {
+            if let Some(v) = &self.data[d] {
+                map.insert(Note::from_u8_lossy(d as u8), v.instances() - 1); // 1 instance is owned by the patch itself
+            }
+        }
+        map
     }
 
     pub fn finish_all_sounds(self) {
