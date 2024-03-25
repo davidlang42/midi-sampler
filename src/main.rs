@@ -4,12 +4,14 @@ use settings::Settings;
 
 use crate::midi::InputDevice;
 use crate::sampler::Sampler;
+use crate::status::GpioStatus;
 
 mod midi;
 mod sampler;
 mod settings;
 mod patch;
 mod notename;
+mod status;
 
 const DEFAULT_SETTINGS_FILE: &str = "settings.json";
 
@@ -30,7 +32,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn run(midi_in: &str, predefined: Vec<Settings>) -> Result<(), Box<dyn Error>> {
     println!("Starting sampler with MIDI-IN: {}", midi_in);
-    Sampler::new(InputDevice::open(&midi_in, false)?, predefined).listen()
+    Sampler::new(InputDevice::open(&midi_in, false)?, predefined, GpioStatus::init(24, 25)?).listen()
 }
 
 fn list_files(root: &str, prefix: &str) -> Result<Vec<String>, Box<dyn Error>> {

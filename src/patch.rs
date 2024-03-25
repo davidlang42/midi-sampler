@@ -34,13 +34,16 @@ impl Patch {
         }
     }
 
-    pub fn play(&mut self, note: Note) {
+    pub fn play(&mut self, note: Note) -> bool {
         if let Some(bytes) = &self.data[note as usize] {
             let bytes_copy = bytes.clone(); // because rodio was too lazy to implement lifetimes
             let cursor = Cursor::new(bytes_copy);
             let sink = self.handle.play_once(cursor).unwrap();
             self.playing[note as usize].push(sink);
-        } 
+            true
+        } else {
+            false
+        }
     }
 
     pub fn finish_all_sounds(self) {
