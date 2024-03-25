@@ -12,6 +12,7 @@ mod settings;
 mod patch;
 mod notename;
 mod status;
+mod shared_vec;
 
 const DEFAULT_SETTINGS_FILE: &str = "settings.json";
 
