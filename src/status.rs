@@ -1,5 +1,7 @@
-use std::io;
-
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
+use std::{io, sync::mpsc::Receiver};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use gpio::{sysfs::SysFsGpioOutput, GpioOut};
 
 pub trait Status {
@@ -11,14 +13,78 @@ pub trait Status {
 }
 
 pub struct GpioStatus {
-    red: SysFsGpioOutput,
-    green: SysFsGpioOutput,
-    state: TriColour
+    _thread: JoinHandle<()>,
+    tx: Sender<State>,
+    last: Option<TriColour>
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum State {
+    Off,
+    Solid(TriColour),
+    Flashing {
+        colour: TriColour,
+        on: bool,
+        count: Option<usize>
+    }
+}
+
+impl State {
+    fn flashing(colour: TriColour) -> Self {
+        Self::Flashing { colour, on: true, count: None }
+    }
+
+    fn flash_once(colour: TriColour) -> Self {
+        Self::Flashing { colour, on: false, count: Some(1) }
+    }
+
+    const FOREVER: Duration = Duration::from_millis(60000);
+    const FLASH: Duration = Duration::from_millis(300);
+
+    fn set(self, red: &mut SysFsGpioOutput, green: &mut SysFsGpioOutput) -> (State, Duration) {
+        match self {
+            State::Off => {
+                Self::set_colour(red, green, None).unwrap();
+                (self, Self::FOREVER)
+            }
+            State::Solid(colour) => {
+                Self::set_colour(red, green, Some(colour)).unwrap();
+                (self, Self::FOREVER)
+            },
+            State::Flashing { colour, on, count } => {
+                Self::set_colour(red, green, if on { Some(colour) } else { None }).unwrap();
+                match count {
+                    Some(0) => (State::Solid(colour), Self::FLASH),
+                    Some(remaining) => (State::Flashing { colour, on: !on, count: Some(remaining - 1) }, Self::FLASH),
+                    None => (State::Flashing { colour, on: !on, count: None }, Self::FLASH)
+                }
+            }
+        }
+    }
+
+    fn set_colour(red: &mut SysFsGpioOutput, green: &mut SysFsGpioOutput, colour: Option<TriColour>) -> io::Result<()> {
+        let (r, g) = match colour {
+            None => (false, false),
+            Some(TriColour::Red) => (true, false),
+            Some(TriColour::Orange) => (true, true),
+            Some(TriColour::Green) => (false, true)
+        };
+        red.set_value(r)?;
+        green.set_value(g)?;
+        Ok(())
+    }
+
+    fn colour(&self) -> Option<TriColour> {
+        match self {
+            State::Off => None,
+            State::Solid(colour) => Some(*colour),
+            State::Flashing { colour, on: _, count: _ } => Some(*colour)
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
 enum TriColour {
-    Off,
     Red,
     Orange,
     Green
@@ -26,54 +92,64 @@ enum TriColour {
 
 impl GpioStatus {
     pub fn init(red_pin: u16, green_pin: u16) -> io::Result<Self> {
-        let mut s = Self {
-            red: gpio::sysfs::SysFsGpioOutput::open(red_pin)?,
-            green: gpio::sysfs::SysFsGpioOutput::open(green_pin)?,
-            state: TriColour::Off
-        };
-        s.update()?;
-        Ok(s)
+        let red = gpio::sysfs::SysFsGpioOutput::open(red_pin)?;
+        let green = gpio::sysfs::SysFsGpioOutput::open(green_pin)?;
+        let (tx, rx) = mpsc::channel();
+        let thread = thread::spawn(move || Self::update_loop(red, green, rx));
+        Ok(Self {
+            _thread: thread,
+            tx,
+            last: None
+        })
     }
 
-    fn update(&mut self) -> io::Result<()> {
-        let (r, g) = match self.state {
-            TriColour::Off => (false, false),
-            TriColour::Red => (true, false),
-            TriColour::Orange => (true, true),
-            TriColour::Green => (false, true)
-        };
-        self.red.set_value(r)?;
-        self.green.set_value(g)?;
-        Ok(())
+    fn send(&mut self, state: State) {
+        self.last = state.colour();
+        self.tx.send(state).unwrap();
+    }
+
+    fn update_loop(mut red: SysFsGpioOutput, mut green: SysFsGpioOutput, rx: Receiver<State>) {
+        let (mut next_state, mut timeout) = State::Off.set(&mut red, &mut green);
+        loop {
+            let result = rx.recv_timeout(timeout);
+            match result {
+                Ok(new_state) => {
+                    (next_state, timeout) = new_state.set(&mut red, &mut green);
+                },
+                Err(RecvTimeoutError::Timeout) => {
+                    (next_state, timeout) = next_state.set(&mut red, &mut green);
+                },
+                Err(RecvTimeoutError::Disconnected) => {
+                    break;
+                }
+            }
+        }
+        State::Off.set(&mut red, &mut green);
     }
 }
 
 impl Status for GpioStatus {
     fn patch_cleared(&mut self) {
-        if self.state == TriColour::Red {
-            //TODO flash off then red
+        if self.last == Some(TriColour::Red) {
+            self.send(State::flash_once(TriColour::Red));
         } else {
-            self.state = TriColour::Red;
-            self.update().unwrap();
+            self.send(State::Solid(TriColour::Red));
         }
     }
 
     fn patch_loading(&mut self) {
-        self.state = TriColour::Orange;
-        self.update().unwrap();
+        self.send(State::Solid(TriColour::Orange));
     }
 
     fn patch_unloading(&mut self) {
-        //TODO could flash continuously instead
-        self.patch_loading();
+        self.send(State::flashing(TriColour::Orange));
     }
 
     fn patch_ready(&mut self) {
-        self.state = TriColour::Green;
-        self.update().unwrap();
+        self.send(State::Solid(TriColour::Green));
     }
     
     fn sound_played(&mut self) {
-        //TODO flash off then green
+        self.send(State::flash_once(TriColour::Green));
     }
 }
