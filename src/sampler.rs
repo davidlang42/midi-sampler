@@ -31,7 +31,7 @@ impl<S: Status> Sampler<S> {
         let mut msb = [0; CHANNEL_MAX];
         let mut lsb = [0; CHANNEL_MAX];
         let mut pc = [0; CHANNEL_MAX];
-        self.status.no_patch();
+        self.status.no_patch(None);
         loop {
             match self.midi_in.read()? {
                 MidiMessage::ControlChange(c, ControlFunction::BANK_SELECT, m) => {
@@ -45,24 +45,22 @@ impl<S: Status> Sampler<S> {
                     let mut temp = None;
                     mem::swap(&mut patch[c as usize], &mut temp);
                     if let Some(old_patch) = temp {
-                        self.status.patch_unloading(&old_patch);
+                        self.status.patch_unloading(c, &old_patch);
                         old_patch.finish_all_sounds();
                     }
                     if let Some(new_settings) = self.settings.get(&(msb[c as usize], lsb[c as usize], pc[c as usize])) {
-                        self.status.patch_loading(new_settings);
-                        println!("{:?} - Patch: {}", c, new_settings.name);
+                        self.status.patch_loading(c, new_settings);
                         let new_patch = Patch::from(new_settings);
-                        self.status.patch_ready(&new_patch);
+                        self.status.patch_ready(c, &new_patch);
                         patch[c as usize] = Some(new_patch);
                     } else {
-                        self.status.no_patch();
+                        self.status.no_patch(Some(c));
                     }
                 },
                 MidiMessage::NoteOn(c, n, _) => {
-                    println!("{:?} - Note: {:?}", c, n);
                     if let Some(current) = &mut patch[c as usize] {
                         if current.play(n) {
-                            self.status.sound_played(n);
+                            self.status.sound_played(c, n);
                         }
                     }
                 },

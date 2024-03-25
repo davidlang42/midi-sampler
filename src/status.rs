@@ -4,17 +4,17 @@ use std::time::Duration;
 use std::{io, sync::mpsc::Receiver};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use gpio::{sysfs::SysFsGpioOutput, GpioOut};
-use wmidi::Note;
+use wmidi::{Channel, Note};
 
 use crate::patch::Patch;
 use crate::settings::Settings;
 
 pub trait Status {
-    fn no_patch(&mut self);
-    fn patch_loading(&mut self, settings: &Settings);
-    fn patch_ready(&mut self, patch: &Patch);
-    fn patch_unloading(&mut self, patch: &Patch);
-    fn sound_played(&mut self, note: Note);
+    fn no_patch(&mut self, channel: Option<Channel>);
+    fn patch_loading(&mut self, channel: Channel, settings: &Settings);
+    fn patch_ready(&mut self, channel: Channel, patch: &Patch);
+    fn patch_unloading(&mut self, channel: Channel, patch: &Patch);
+    fn sound_played(&mut self, channel: Channel, note: Note);
 }
 
 pub struct GpioStatus {
@@ -134,7 +134,7 @@ impl GpioStatus {
 }
 
 impl Status for GpioStatus {
-    fn no_patch(&mut self) {
+    fn no_patch(&mut self, _channel: Option<Channel>) {
         if self.last == Some(TriColour::Red) {
             self.send(State::flash_once(TriColour::Red));
         } else {
@@ -142,19 +142,19 @@ impl Status for GpioStatus {
         }
     }
 
-    fn patch_loading(&mut self, _settings: &Settings) {
+    fn patch_loading(&mut self, _channel: Channel, _settings: &Settings) {
         self.send(State::Solid(TriColour::Orange));
     }
 
-    fn patch_ready(&mut self, _patch: &Patch) {
+    fn patch_ready(&mut self, _channel: Channel, _patch: &Patch) {
         self.send(State::Solid(TriColour::Green));
     }
 
-    fn patch_unloading(&mut self, _patch: &Patch) {
+    fn patch_unloading(&mut self, _channel: Channel, _patch: &Patch) {
         self.send(State::flashing(TriColour::Orange));
     }
     
-    fn sound_played(&mut self, _note: Note) {
+    fn sound_played(&mut self, _channel: Channel, _note: Note) {
         self.send(State::flash_once(TriColour::Green));
     }
 }
@@ -162,23 +162,27 @@ impl Status for GpioStatus {
 pub struct TextStatus<W: Write>(pub W);
 
 impl<W: Write> Status for TextStatus<W> {
-    fn no_patch(&mut self) {
-        writeln!(self.0, "No patch").unwrap();
+    fn no_patch(&mut self, channel: Option<Channel>) {
+        if let Some(c) = channel {
+            writeln!(self.0, "[{:?}] No patch", c).unwrap();
+        } else {
+            writeln!(self.0, "No patch on any channel").unwrap();
+        }
     }
 
-    fn patch_loading(&mut self, settings: &Settings) {
-        writeln!(self.0, "Loading patch: {}", settings.name).unwrap();
+    fn patch_loading(&mut self, channel: Channel, settings: &Settings) {
+        writeln!(self.0, "[{:?}] Loading patch: {}", channel, settings.name).unwrap();
     }
 
-    fn patch_ready(&mut self, patch: &Patch) {
-        writeln!(self.0, "Patch ready: {:?}", patch.trigger_notes()).unwrap();
+    fn patch_ready(&mut self, channel: Channel, patch: &Patch) {
+        writeln!(self.0, "[{:?}] Patch ready: {:?}", channel, patch.trigger_notes()).unwrap();
     }
 
-    fn patch_unloading(&mut self, patch: &Patch) {
-        writeln!(self.0, "Unloading patch: {:?}", patch.playing_sounds()).unwrap();
+    fn patch_unloading(&mut self, channel: Channel, patch: &Patch) {
+        writeln!(self.0, "[{:?}] Unloading patch: {:?}", channel, patch.playing_sounds()).unwrap();
     }
 
-    fn sound_played(&mut self, note: Note) {
-        writeln!(self.0, "Sound played: {:?}", note).unwrap();
+    fn sound_played(&mut self, channel: Channel, note: Note) {
+        writeln!(self.0, "[{:?}] Sound played: {:?}", channel, note).unwrap();
     }
 }
